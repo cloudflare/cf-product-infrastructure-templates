@@ -680,7 +680,7 @@ resource "aws_lambda_function" "crawler" {
   package_type                   = "Image"
   architectures                  = ["arm64"]
   timeout                        = 900
-  memory_size                    = 10240
+  memory_size                    = 1024
   reserved_concurrent_executions = local.lambda.crawler_concurrency
 
   vpc_config {
@@ -712,7 +712,7 @@ resource "aws_lambda_function" "control" {
   package_type                   = "Image"
   architectures                  = ["arm64"]
   timeout                        = 900
-  memory_size                    = 10240
+  memory_size                    = 1024
   reserved_concurrent_executions = local.lambda.control_concurrency
 
   vpc_config {
