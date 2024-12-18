@@ -48,10 +48,16 @@ locals {
   region_availability_zone_id_mapping = {
     "us-east-1" = ["use1-az1", "use1-az2"],
     "us-east-2" = ["use2-az1", "use2-az2"],
-    "us-west-1" = ["usw1-az1", "usw1-az2"],
+    "us-west-1" = ["usw1-az1", "usw1-az2", "usw1-az3"],
     "us-west-2" = ["usw2-az1", "usw2-az2"],
     "eu-west-1" = ["euw1-az1", "euw2-az2"],
   }
+
+  region_elasticache_node_type_mapping = {
+    "us-west-1" = "cache.r6g.large",
+  }
+
+  default_elasticache_node_type = "cache.r7g.large"
 
   supported_region_names = sort(keys(local.region_availability_zone_id_mapping))
   num_supported_regions  = length(local.supported_region_names)
@@ -109,6 +115,10 @@ locals {
   }
 }
 
+data "aws_availability_zones" "current" {
+  state = "available"
+}
+
 data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {
@@ -124,10 +134,21 @@ data "aws_region" "current" {
 }
 
 locals {
-  availability_zone_ids = {
-    for index, az_id in local.region_availability_zone_id_mapping[data.aws_region.current.name] :
+  lambda_supported_availability_zone_ids = tolist(setintersection(
+    toset(local.region_availability_zone_id_mapping[data.aws_region.current.name]),
+    toset(data.aws_availability_zones.current.zone_ids),
+  ))
+
+  all_availability_zone_ids = {
+    for index, az_id in sort(data.aws_availability_zones.current.zone_ids) :
     az_id => index
   }
+
+  elasticache_node_type = lookup(
+    local.region_elasticache_node_type_mapping,
+    data.aws_region.current.name,
+    local.default_elasticache_node_type,
+  )
 }
 
 ##
@@ -157,7 +178,7 @@ resource "aws_internet_gateway" "internet_gateway" {
 }
 
 resource "aws_subnet" "public_subnet" {
-  for_each                        = local.availability_zone_ids
+  for_each                        = local.all_availability_zone_ids
   vpc_id                          = aws_vpc.vpc.id
   availability_zone_id            = each.key
   cidr_block                      = cidrsubnet(local.vpc_ipv4_public_cidr, 4, each.value)
@@ -170,7 +191,7 @@ resource "aws_subnet" "public_subnet" {
 }
 
 resource "aws_subnet" "private_subnet" {
-  for_each                        = local.availability_zone_ids
+  for_each                        = local.all_availability_zone_ids
   vpc_id                          = aws_vpc.vpc.id
   availability_zone_id            = each.key
   cidr_block                      = cidrsubnet(local.vpc_ipv4_private_cidr, 4, each.value)
@@ -185,6 +206,7 @@ resource "aws_subnet" "private_subnet" {
 locals {
   public_subnet_ids  = [for subnet in aws_subnet.public_subnet : subnet.id]
   private_subnet_ids = [for subnet in aws_subnet.private_subnet : subnet.id]
+  lambda_subnet_ids  = [for az_id in local.lambda_supported_availability_zone_ids : aws_subnet.private_subnet[az_id].id]
 }
 
 resource "aws_route_table" "public_route_table" {
@@ -219,13 +241,13 @@ resource "aws_route_table" "private_route_table" {
 }
 
 resource "aws_route_table_association" "public_route_table_association" {
-  for_each       = local.availability_zone_ids
+  for_each       = local.all_availability_zone_ids
   subnet_id      = aws_subnet.public_subnet[each.key].id
   route_table_id = aws_route_table.public_route_table.id
 }
 
 resource "aws_route_table_association" "prviate_route_table_association" {
-  for_each       = local.availability_zone_ids
+  for_each       = local.all_availability_zone_ids
   subnet_id      = aws_subnet.private_subnet[each.key].id
   route_table_id = aws_route_table.private_route_table.id
 }
@@ -409,7 +431,7 @@ resource "aws_elasticache_replication_group" "elasticache_replication_group" {
   automatic_failover_enabled = true
   replication_group_id       = "cloudflare-cds"
   description                = "Holds state for the Cloudflare CDS product"
-  node_type                  = "cache.m7g.large"
+  node_type                  = local.elasticache_node_type
   num_node_groups            = 1
   replicas_per_node_group    = 0
   parameter_group_name       = "default.valkey8.cluster.on"
@@ -654,7 +676,7 @@ resource "aws_lambda_function" "scanner" {
   vpc_config {
     ipv6_allowed_for_dual_stack = true
     security_group_ids          = [aws_security_group.lambda_security_group.id]
-    subnet_ids                  = local.private_subnet_ids
+    subnet_ids                  = local.lambda_subnet_ids
   }
 
   environment {
@@ -686,7 +708,7 @@ resource "aws_lambda_function" "crawler" {
   vpc_config {
     ipv6_allowed_for_dual_stack = true
     security_group_ids          = [aws_security_group.lambda_security_group.id]
-    subnet_ids                  = local.private_subnet_ids
+    subnet_ids                  = local.lambda_subnet_ids
   }
 
   environment {
@@ -718,7 +740,7 @@ resource "aws_lambda_function" "control" {
   vpc_config {
     ipv6_allowed_for_dual_stack = true
     security_group_ids          = [aws_security_group.lambda_security_group.id]
-    subnet_ids                  = local.private_subnet_ids
+    subnet_ids                  = local.lambda_subnet_ids
   }
 
   environment {
