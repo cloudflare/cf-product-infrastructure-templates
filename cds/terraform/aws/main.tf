@@ -37,9 +37,9 @@ variable "enable_debug_logging" {
 locals {
   cloudflare_cds_service_account_arn = "arn:aws:iam::590183649595:group/cloudflare-cds-service-account"
   cloudflare_cds_kms_key_alias       = "alias/cloudflare-cds-kms-key"
-  cds_scanner_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/scanner:v1.0.2-arm64"
-  cds_crawler_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/crawler:v1.0.2-arm64"
-  cds_control_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/control:v1.0.2-arm64"
+  cds_scanner_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/scanner:v1.0.3-arm64"
+  cds_crawler_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/crawler:v1.0.3-arm64"
+  cds_control_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/control:v1.0.3-arm64"
   control_schedule_minutes           = 1
 
 
