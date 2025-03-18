@@ -6,18 +6,20 @@ terraform {
       version = "5.80.0"
     }
   }
-
 }
 
 provider "aws" {
   default_tags {
     tags = {
       Application = "cloudflare-cds"
-
     }
   }
 }
-
+variable "prefix" {
+  description = "Prefix for aws created resources"
+  type        = string
+  default     = ""
+}
 
 variable "cloudflare_api_token" {
   description = "Cloudflare API Token: the API token your CDS Deployment will use to communicate to the Cloudflare API"
@@ -34,13 +36,26 @@ variable "enable_debug_logging" {
 
 }
 
+variable "deployment_version" {
+  type    = string
+  default = "1.0.13"
+}
+
+variable "image_tag" {
+  type    = string
+  default = "v1.0.13-arm64"
+}
+
 locals {
   cloudflare_cds_service_account_arn = "arn:aws:iam::590183649595:group/cloudflare-cds-service-account"
   cloudflare_cds_kms_key_alias       = "alias/cloudflare-cds-kms-key"
-  cds_scanner_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/scanner:v1.0.3-arm64"
-  cds_crawler_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/crawler:v1.0.3-arm64"
-  cds_control_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/control:v1.0.3-arm64"
+  cds_scanner_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/scanner:${var.image_tag}"
+  cds_crawler_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/crawler:${var.image_tag}"
+  cds_control_ecr                    = "590183649595.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/cde/control:${var.image_tag}"
   control_schedule_minutes           = 1
+  deployment_version                 = var.deployment_version
+
+  cds_service_account_iam_role_name = "cloudflare-cds-service-account-iam-role"
 
 
 
@@ -93,7 +108,7 @@ locals {
     control_concurrency   = 1
     lambda_env = {
       CDS_CLOUD_VENDOR         = "aws"
-      CDS_DEPLOYMENT_VERSION   = "1.0.0"
+      CDS_DEPLOYMENT_VERSION   = local.deployment_version
       CDS_SCANJOB_SQS_URI      = aws_sqs_queue.scanjobs_queue.url
       CDS_SCANRESULT_SQS_URI   = aws_sqs_queue.scanresults_queue.url
       CDS_DISCOVERY_SQS_URI    = aws_sqs_queue.discovery_queue.url
@@ -542,7 +557,7 @@ data "aws_iam_policy_document" "lambda_assume_role_policy_document" {
 }
 
 resource "aws_iam_role" "cds_service_account_iam_role" {
-  name               = "cloudflare-cds-service-account-iam-role"
+  name               = local.cds_service_account_iam_role_name
   assume_role_policy = data.aws_iam_policy_document.cds_service_account_assume_role_policy_document.json
   tags = {
     Name = "cloudflare-cds-service-account-iam-role"
@@ -550,7 +565,7 @@ resource "aws_iam_role" "cds_service_account_iam_role" {
 }
 
 resource "aws_iam_role" "cds_scanner_lambda_execution_role" {
-  name               = "cloudflare-cds-scanner-lambda-iam-role"
+  name               = "${var.prefix}cloudflare-cds-scanner-lambda-iam-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy_document.json
   tags = {
     Name = "cloudflare-cds-scanner-lambda-iam-role"
@@ -558,7 +573,7 @@ resource "aws_iam_role" "cds_scanner_lambda_execution_role" {
 }
 
 resource "aws_iam_role" "cds_crawler_lambda_execution_role" {
-  name               = "cloudflare-cds-crawler-lambda-iam-role"
+  name               = "${var.prefix}cloudflare-cds-crawler-lambda-iam-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy_document.json
   tags = {
     Name = "cloudflare-cds-crawler-lambda-iam-role"
@@ -566,7 +581,7 @@ resource "aws_iam_role" "cds_crawler_lambda_execution_role" {
 }
 
 resource "aws_iam_role" "cds_control_lambda_execution_role" {
-  name               = "cloudflare-cds-control-lambda-iam-role"
+  name               = "${var.prefix}cloudflare-cds-control-lambda-iam-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy_document.json
   tags = {
     Name = "cloudflare-cds-control-lambda-iam-role"
@@ -588,6 +603,7 @@ data "aws_iam_policy_document" "cds_kms_key_policy_document" {
     actions = [
       "kms:Encrypt"
     ]
+    resources = ["*"]
   }
 
   statement {
@@ -808,7 +824,7 @@ data "aws_iam_policy_document" "cds_sqs_consumption_iam_policy_document" {
 }
 
 resource "aws_iam_policy" "cds_sqs_consumption_iam_policy" {
-  name   = "cloudflare-cds-service-account-sqs-consumption-iam-policy"
+  name   = "${var.prefix}cloudflare-cds-service-account-sqs-consumption-iam-policy"
   policy = data.aws_iam_policy_document.cds_sqs_consumption_iam_policy_document.json
   tags = {
     Name = "cloudflare-cds-service-account-sqs-consumption-iam-policy"
@@ -826,7 +842,7 @@ data "aws_iam_policy_document" "cds_kms_encryption_iam_policy_document" {
 }
 
 resource "aws_iam_policy" "cds_kms_encryption_iam_policy" {
-  name   = "cloudflare-cds-service-account-kms-encrypt-iam-policy"
+  name   = "${var.prefix}cloudflare-cds-service-account-kms-encrypt-iam-policy"
   policy = data.aws_iam_policy_document.cds_kms_encryption_iam_policy_document.json
   tags = {
     Name = "cloudflare-cds-service-account-kms-encrypt-iam-policy"
@@ -928,7 +944,7 @@ data "aws_iam_policy_document" "cds_scanner_lambda_iam_policy_document" {
 }
 
 resource "aws_iam_policy" "cds_scanner_lambda_iam_policy" {
-  name   = "cloudflare-cds-scanner-lambda-iam-policy"
+  name   = "${var.prefix}cloudflare-cds-scanner-lambda-iam-policy"
   policy = data.aws_iam_policy_document.cds_scanner_lambda_iam_policy_document.json
   tags = {
     Name = "cloudflare-cds-scanner-lambda-iam-policy"
@@ -989,7 +1005,7 @@ data "aws_iam_policy_document" "cds_crawler_lambda_iam_policy_document" {
 }
 
 resource "aws_iam_policy" "cds_crawler_lambda_iam_policy" {
-  name   = "cloudflare-cds-crawler-lambda-iam-policy"
+  name   = "${var.prefix}cloudflare-cds-crawler-lambda-iam-policy"
   policy = data.aws_iam_policy_document.cds_crawler_lambda_iam_policy_document.json
   tags = {
     Name = "cloudflare-cds-crawler-lambda-iam-policy"
@@ -1065,7 +1081,7 @@ data "aws_iam_policy_document" "cds_control_lambda_iam_policy_document" {
 }
 
 resource "aws_iam_policy" "cds_control_lambda_iam_policy" {
-  name   = "cloudflare-cds-control-lambda-iam-policy"
+  name   = "${var.prefix}cloudflare-cds-control-lambda-iam-policy"
   policy = data.aws_iam_policy_document.cds_control_lambda_iam_policy_document.json
   tags = {
     Name = "cloudflare-cds-control-lambda-iam-policy"
@@ -1093,7 +1109,7 @@ resource "aws_iam_role_policy_attachment" "cds_control_lambda_attach_role" {
 resource "aws_lambda_event_source_mapping" "crawler_event_source_mapping" {
   batch_size       = 1
   event_source_arn = aws_sqs_queue.discovery_queue.arn
-  function_name    = aws_lambda_function.crawler.function_name
+  function_name    = aws_lambda_function.crawler.arn
   tags = {
     Name = "cloudflare-cds-crawler-lambda-event-source-mapping"
   }
@@ -1103,7 +1119,7 @@ resource "aws_lambda_event_source_mapping" "scanner_event_source_mapping" {
   batch_size                         = 10
   maximum_batching_window_in_seconds = 30
   event_source_arn                   = aws_sqs_queue.scanjobs_queue.arn
-  function_name                      = aws_lambda_function.scanner.function_name
+  function_name                      = aws_lambda_function.scanner.arn
   tags = {
     Name = "cloudflare-cds-scanner-lambda-event-source-mapping"
   }
