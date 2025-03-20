@@ -38,12 +38,12 @@ variable "enable_debug_logging" {
 
 variable "deployment_version" {
   type    = string
-  default = "1.0.13"
+  default = "1.0.14"
 }
 
 variable "image_tag" {
   type    = string
-  default = "v1.0.13-arm64"
+  default = "v1.0.14-arm64"
 }
 
 locals {

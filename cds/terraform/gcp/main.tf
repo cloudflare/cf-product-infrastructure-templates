@@ -14,12 +14,12 @@ provider "google" {
 }
 
 variable "deployment_version" {
-  default = "1.0.13"
+  default = "1.0.14"
   type    = string
 }
 
 variable "image_tag" {
-  default = "v1.0.13-amd64"
+  default = "v1.0.14-amd64"
   type    = string
 }
 
