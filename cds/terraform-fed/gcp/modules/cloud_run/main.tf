@@ -26,6 +26,7 @@ locals {
     CDS_CONTROL_LISTEN_PORT       = "8080"
     CDS_DEBUG_LOGGING             = var.enable_debug_logging
     CDS_SECRET_NAME               = var.secret_name
+    CDS_ENVIRONMENT_OVERRIDE      = "prod-fed"
   }
 
   crawler_environment = {

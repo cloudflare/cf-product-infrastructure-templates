@@ -119,6 +119,7 @@ locals {
       CDS_AWS_ACCOUNT_ID       = data.aws_caller_identity.current.account_id
       CDS_SECRETS_ARN          = aws_secretsmanager_secret_version.cds_secrets.arn
       CDS_DEBUG_LOGGING        = tostring(var.enable_debug_logging)
+      CDS_ENVIRONMENT_OVERRIDE = "prod-fed"
     }
     scanner_only_env = {
       CDS_DLP_SCANNER_HOST               = "127.0.0.1"
